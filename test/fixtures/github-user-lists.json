@@ -1,0 +1,59 @@
+{
+  "data": {
+    "viewer": {
+      "lists": {
+        "nodes": [
+          {
+            "id": "UL_private",
+            "name": "Private Tools",
+            "slug": "private-tools",
+            "description": "Personal shortlist",
+            "isPrivate": true,
+            "updatedAt": "2026-01-03T00:00:00Z",
+            "items": {
+              "nodes": [
+                {
+                  "id": "R_alpha",
+                  "databaseId": 1,
+                  "name": "alpha",
+                  "nameWithOwner": "octo/alpha",
+                  "description": "A tiny TypeScript search utility",
+                  "url": "https://github.com/octo/alpha",
+                  "primaryLanguage": { "name": "TypeScript" },
+                  "stargazerCount": 10,
+                  "updatedAt": "2026-01-01T00:00:00Z"
+                }
+              ],
+              "pageInfo": { "hasNextPage": false, "endCursor": null }
+            }
+          },
+          {
+            "id": "UL_public",
+            "name": "Public Research",
+            "slug": "public-research",
+            "description": "Public shortlist",
+            "isPrivate": false,
+            "updatedAt": "2026-01-04T00:00:00Z",
+            "items": {
+              "nodes": [
+                {
+                  "id": "R_beta",
+                  "databaseId": 2,
+                  "name": "beta",
+                  "nameWithOwner": "octo/beta",
+                  "description": "SQLite bookmark experiments",
+                  "url": "https://github.com/octo/beta",
+                  "primaryLanguage": { "name": "JavaScript" },
+                  "stargazerCount": 20,
+                  "updatedAt": "2026-01-02T00:00:00Z"
+                }
+              ],
+              "pageInfo": { "hasNextPage": false, "endCursor": null }
+            }
+          }
+        ],
+        "pageInfo": { "hasNextPage": false, "endCursor": null }
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "node_id": "R_alpha",
+    "id": 1,
+    "full_name": "octo/alpha",
+    "name": "alpha",
+    "owner": { "login": "octo" },
+    "description": "A tiny TypeScript search utility",
+    "language": "TypeScript",
+    "html_url": "https://github.com/octo/alpha",
+    "stargazers_count": 10,
+    "updated_at": "2026-01-01T00:00:00Z"
+  }
+]
