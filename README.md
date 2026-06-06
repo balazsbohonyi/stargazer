@@ -40,11 +40,16 @@ npm run lint
 
 ## Quick Start
 
-Create a `.env` file in the project root:
+Create a persistent config file in your Stargazer app directory:
 
-```env
+```sh
+mkdir -p ~/.stargazer
+chmod 700 ~/.stargazer
+cat > ~/.stargazer/config.env <<'EOF'
 GITHUB_TOKEN=github_pat_...
 GITHUB_STARS_CLICKABLE_URLS=true
+EOF
+chmod 600 ~/.stargazer/config.env
 ```
 
 Sync starred repositories and Star Lists:
@@ -69,19 +74,25 @@ stargazer show repo
 
 ## Authentication
 
-The CLI reads `.env` from the project root automatically, then falls back to the current shell environment. It accepts `GITHUB_TOKEN` or `GH_TOKEN`.
+The CLI reads persistent config from `~/.stargazer/config.env` and also accepts shell environment variables. It accepts `GITHUB_TOKEN` or `GH_TOKEN`.
 
 ```sh
 stargazer sync
 ```
 
-You can also pass a token directly:
+Shell environment variables override persistent config for the current command:
+
+```sh
+GITHUB_TOKEN=github_pat_... stargazer sync
+```
+
+You can also pass a token directly. CLI flags have the highest precedence:
 
 ```sh
 stargazer --token github_pat_... sync
 ```
 
-The sync command fails before contacting GitHub when no token is configured. Keep `.env` out of git because it contains your token.
+The sync command fails before contacting GitHub when no token is configured. Treat `~/.stargazer/config.env` as a sensitive local file because it may contain your token.
 
 ## Terminal Output
 
@@ -93,6 +104,12 @@ Search results use colored terminal output by default:
 - URLs are blue and underlined.
 
 Make URLs clickable in terminals that support OSC 8 hyperlinks:
+
+```sh
+GITHUB_STARS_CLICKABLE_URLS=true stargazer search sqlite
+```
+
+Or set it persistently in `~/.stargazer/config.env`:
 
 ```env
 GITHUB_STARS_CLICKABLE_URLS=true
@@ -106,15 +123,23 @@ GITHUB_STARS_COLOR=false
 
 ## Database Location
 
-By default, the CLI stores data in `.github-stars.sqlite` in the current working directory.
+By default, the CLI stores data in `~/.stargazer/github-stars.sqlite`. The default path is user-global, so `sync`, `search`, and `show` use the same local database no matter which directory you run `stargazer` from.
 
-Override the database path with `--db` or `GITHUB_STARS_DB`:
+Override the database path with `--db` or `GITHUB_STARS_DB` when you need an isolated or advanced workflow:
 
 ```sh
 stargazer --db ./stars.sqlite sync
 stargazer --db ./stars.sqlite search sqlite
 stargazer --db ./stars.sqlite show octo/repo
 ```
+
+You can also set a persistent database override in `~/.stargazer/config.env`:
+
+```env
+GITHUB_STARS_DB=/path/to/stars.sqlite
+```
+
+If you used an older project checkout with `.github-stars.sqlite` in the project root, Stargazer will not move or delete that database automatically. To keep using it, pass `--db ./.github-stars.sqlite` or copy it manually to `~/.stargazer/github-stars.sqlite`.
 
 ## Commands
 
@@ -142,7 +167,9 @@ Short names must uniquely identify a repository. If more than one local reposito
 
 ## Privacy
 
-The CLI treats public and private GitHub Star Lists the same for local search. Private list names, descriptions, and membership are stored only in the local SQLite database. The MVP does not publish, mutate, or sync list metadata back to GitHub.
+The CLI treats public and private GitHub Star Lists the same for local search. Private list names, descriptions, and membership are stored only in the local SQLite database under `~/.stargazer` unless you override the path. The MVP does not publish, mutate, or sync list metadata back to GitHub.
+
+Persistent config files are local sensitive files when they contain GitHub tokens. Keep `~/.stargazer/config.env` private and avoid copying it into shared project directories.
 
 ## Current Boundaries
 

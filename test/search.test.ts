@@ -61,9 +61,12 @@ describe("search", () => {
 
     const output = formatSearchResults(searchRepositories(store, "alpha"));
 
-    expect(output).toContain("octo/alpha [TypeScript]");
+    expect(output.startsWith("\n")).toBe(true);
+    expect(output).toContain(
+      "┌────────────┐\n│ octo/alpha │ [TypeScript]\n└────────────┘\nhttps://github.com/octo/alpha\n\n"
+    );
     expect(output).toContain("Lists: Private Tools, Public Research");
-    expect(output).toContain(longDescription);
+    expect(output).toContain(`${longDescription}\n\nLists:`);
     expect(output).not.toContain("...");
   });
 
@@ -73,7 +76,11 @@ describe("search", () => {
       clickableUrls: true
     });
 
-    expect(output).toContain("\u001B[1;36mocto/alpha [TypeScript]\u001B[0m");
+    expect(output).toContain(
+      "\u001B[33m┌\u001B[0m\u001B[33m────────────\u001B[0m\u001B[33m┐\u001B[0m\n" +
+        "\u001B[33m│\u001B[0m \u001B[33mocto/alpha\u001B[0m \u001B[33m│\u001B[0m [TypeScript]\n" +
+        "\u001B[33m└\u001B[0m\u001B[33m────────────\u001B[0m\u001B[33m┘\u001B[0m\n"
+    );
     expect(output).toContain("\u001B[32mLists: Private Tools, Public Research\u001B[0m");
     expect(output).toContain("\u001B]8;;https://github.com/octo/alpha\u0007");
     expect(output).toContain("\u001B[4;34mhttps://github.com/octo/alpha\u001B[0m");

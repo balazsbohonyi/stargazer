@@ -1,3 +1,4 @@
+import os from "node:os";
 import path from "node:path";
 import { config as loadDotenv } from "dotenv";
 
@@ -9,7 +10,9 @@ export interface BaseOptions {
 }
 
 export interface AppConfig {
+  appDirectory: string;
   databasePath: string;
+  databasePathSource: "flag" | "env" | "app-config" | "default";
   githubToken?: string;
   colorOutput: boolean;
   clickableUrls: boolean;
@@ -23,21 +26,50 @@ export class ConfigError extends Error {
 }
 
 export function loadConfig(options: BaseOptions = {}, env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const runtimeEnv = env === process.env ? loadRuntimeEnv(env) : env;
-  const databasePath = options.db ?? runtimeEnv.GITHUB_STARS_DB ?? path.resolve(process.cwd(), ".github-stars.sqlite");
-  const githubToken = options.token ?? runtimeEnv.GITHUB_TOKEN ?? runtimeEnv.GH_TOKEN;
+  const appDirectory = resolveAppDirectory(env);
+  let appConfig: Record<string, string | undefined> | undefined;
+  const getAppConfig = () => (appConfig ??= loadAppConfig(appDirectory));
+  const databasePathResolution = resolveDatabasePath(options, env, getAppConfig, appDirectory);
+  const githubToken = options.token ?? env.GITHUB_TOKEN ?? env.GH_TOKEN ?? getAppConfig().GITHUB_TOKEN ?? getAppConfig().GH_TOKEN;
 
   return {
-    databasePath: path.resolve(databasePath),
+    appDirectory,
+    databasePath: path.resolve(databasePathResolution.path),
+    databasePathSource: databasePathResolution.source,
     githubToken,
-    colorOutput: parseBoolean(runtimeEnv.GITHUB_STARS_COLOR, true) && runtimeEnv.NO_COLOR === undefined,
-    clickableUrls: parseBoolean(runtimeEnv.GITHUB_STARS_CLICKABLE_URLS, false)
+    colorOutput: parseBoolean(env.GITHUB_STARS_COLOR ?? getAppConfig().GITHUB_STARS_COLOR, true) && env.NO_COLOR === undefined,
+    clickableUrls: parseBoolean(env.GITHUB_STARS_CLICKABLE_URLS ?? getAppConfig().GITHUB_STARS_CLICKABLE_URLS, false)
   };
 }
 
-function loadRuntimeEnv(env: NodeJS.ProcessEnv) {
-  loadDotenv({ path: path.resolve(process.cwd(), ".env"), quiet: true });
-  return env;
+function resolveAppDirectory(env: NodeJS.ProcessEnv) {
+  const homeDirectory = env.HOME ?? env.USERPROFILE ?? os.homedir();
+  return path.resolve(homeDirectory, ".stargazer");
+}
+
+function loadAppConfig(appDirectory: string): Record<string, string | undefined> {
+  const configPath = path.join(appDirectory, "config.env");
+  return loadDotenv({ path: configPath, processEnv: {}, quiet: true }).parsed ?? {};
+}
+
+function resolveDatabasePath(
+  options: BaseOptions,
+  env: NodeJS.ProcessEnv,
+  getAppConfig: () => Record<string, string | undefined>,
+  appDirectory: string
+): { path: string; source: AppConfig["databasePathSource"] } {
+  if (options.db !== undefined) return { path: options.db, source: "flag" };
+  if (env.GITHUB_STARS_DB !== undefined) return { path: env.GITHUB_STARS_DB, source: "env" };
+  const appConfig = getAppConfig();
+  if (appConfig.GITHUB_STARS_DB !== undefined) {
+    return {
+      path: path.isAbsolute(appConfig.GITHUB_STARS_DB)
+        ? appConfig.GITHUB_STARS_DB
+        : path.join(appDirectory, appConfig.GITHUB_STARS_DB),
+      source: "app-config"
+    };
+  }
+  return { path: path.join(appDirectory, "github-stars.sqlite"), source: "default" };
 }
 
 function parseBoolean(value: string | undefined, defaultValue: boolean) {

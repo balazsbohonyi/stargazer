@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command, CommanderError } from "commander";
 import { loadConfig, requireGithubToken, type BaseOptions } from "./config.js";
@@ -28,6 +29,7 @@ export function createDefaultHandlers(io: CliIo): CliHandlers {
     async sync(options) {
       const config = loadConfig(options);
       const token = requireGithubToken(config);
+      ensureDatabaseParentDirectory(config);
       const db = connect(config.databasePath);
       try {
         initializeSchema(db);
@@ -43,6 +45,10 @@ export function createDefaultHandlers(io: CliIo): CliHandlers {
     },
     async search(query, options) {
       const config = loadConfig(options);
+      if (isMissingDefaultDatabase(config)) {
+        io.stdout.write(formatSearchResults([], { color: config.colorOutput, clickableUrls: config.clickableUrls }));
+        return;
+      }
       const db = connect(config.databasePath);
       try {
         initializeSchema(db);
@@ -54,6 +60,10 @@ export function createDefaultHandlers(io: CliIo): CliHandlers {
     },
     async show(repo, options) {
       const config = loadConfig(options);
+      if (isMissingDefaultDatabase(config)) {
+        io.stdout.write(formatInspection({ status: "not-found", input: repo }));
+        return;
+      }
       const db = connect(config.databasePath);
       try {
         initializeSchema(db);
@@ -64,6 +74,26 @@ export function createDefaultHandlers(io: CliIo): CliHandlers {
       }
     }
   };
+}
+
+function isMissingDefaultDatabase(config: ReturnType<typeof loadConfig>) {
+  return config.databasePathSource === "default" && !fs.existsSync(config.databasePath);
+}
+
+function ensureDatabaseParentDirectory(config: ReturnType<typeof loadConfig>) {
+  if (config.databasePathSource === "default" || isPathWithin(config.databasePath, config.appDirectory)) {
+    fs.mkdirSync(config.appDirectory, { recursive: true, mode: 0o700 });
+    if (process.platform !== "win32") {
+      fs.chmodSync(config.appDirectory, 0o700);
+    }
+  }
+
+  fs.mkdirSync(path.dirname(config.databasePath), { recursive: true, mode: 0o700 });
+}
+
+function isPathWithin(candidate: string, parent: string) {
+  const relative = path.relative(parent, candidate);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
 export function createProgram(handlers: CliHandlers = createDefaultHandlers({ stdout: process.stdout, stderr: process.stderr })) {

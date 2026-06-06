@@ -22,15 +22,17 @@ if (!binSource.startsWith("#!/usr/bin/env node")) {
 }
 
 const tempPrefix = fs.mkdtempSync(path.join(os.tmpdir(), "stargazer-bin-"));
+const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "stargazer-home-"));
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
-function run(command, args) {
+function run(command, args, options = {}) {
+  const env = options.env ? { ...process.env, ...options.env } : undefined;
   if (process.platform !== "win32") {
-    return spawnSync(command, args, { encoding: "utf8" });
+    return spawnSync(command, args, { encoding: "utf8", env });
   }
 
   const quoted = [command, ...args].map((part) => (/\s/.test(part) ? `"${part.replaceAll('"', '""')}"` : part)).join(" ");
-  return spawnSync("cmd.exe", ["/d", "/c", quoted], { encoding: "utf8" });
+  return spawnSync("cmd.exe", ["/d", "/c", quoted], { encoding: "utf8", env });
 }
 
 try {
@@ -44,7 +46,7 @@ try {
     process.platform === "win32"
       ? path.join(tempPrefix, "stargazer.cmd")
       : path.join(tempPrefix, "bin", "stargazer");
-  const help = run(commandPath, ["--help"]);
+  const help = run(commandPath, ["--help"], { env: { HOME: tempHome } });
 
   if (help.status !== 0 || help.error) {
     throw new Error(`Expected stargazer help to exit 0, got ${help.status}: ${help.error ?? ""}\n${help.stderr ?? ""}`);
@@ -53,6 +55,11 @@ try {
   if (!help.stdout.includes("Usage: stargazer")) {
     throw new Error(`Expected help output to include Usage: stargazer, got:\n${help.stdout}`);
   }
+
+  if (fs.existsSync(path.join(tempHome, ".stargazer"))) {
+    throw new Error("Expected stargazer help not to create the default app directory");
+  }
 } finally {
   fs.rmSync(tempPrefix, { recursive: true, force: true });
+  fs.rmSync(tempHome, { recursive: true, force: true });
 }
