@@ -98,10 +98,23 @@ The sync command fails before contacting GitHub when no token is configured. Tre
 
 Search results use colored terminal output by default:
 
-- Repository names are bold cyan.
+- Repository names are displayed in a Unicode box.
+- Repository name boxes and repository names are yellow.
 - Star List lines are green.
-- Match reasons are yellow.
 - URLs are blue and underlined.
+
+Search output is formatted with the repository language beside the boxed name, followed by the URL, description, and Star List membership:
+
+```text
+┌────────────┐
+│ octo/alpha │ [TypeScript]
+└────────────┘
+https://github.com/octo/alpha
+
+A tiny TypeScript search utility
+
+Lists: Private Tools, Public Research
+```
 
 Make URLs clickable in terminals that support OSC 8 hyperlinks:
 
