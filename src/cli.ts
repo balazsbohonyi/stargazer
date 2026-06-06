@@ -12,11 +12,13 @@ import { syncStars } from "./github/sync.js";
 import { formatSearchResults } from "./search/format.js";
 import { searchRepositories } from "./search/search.js";
 import { formatInspection, inspectRepository } from "./inspect/inspect.js";
+import { formatStarLists } from "./lists/lists.js";
 
 export interface CliHandlers {
   sync: (options: BaseOptions) => Promise<void> | void;
   search: (query: string, options: BaseOptions) => Promise<void> | void;
   show: (repo: string, options: BaseOptions) => Promise<void> | void;
+  lists?: (options: BaseOptions) => Promise<void> | void;
 }
 
 export interface CliIo {
@@ -24,7 +26,7 @@ export interface CliIo {
   stderr: Pick<NodeJS.WriteStream, "write">;
 }
 
-export function createDefaultHandlers(io: CliIo): CliHandlers {
+export function createDefaultHandlers(io: CliIo): Required<CliHandlers> {
   return {
     async sync(options) {
       const config = loadConfig(options);
@@ -44,36 +46,50 @@ export function createDefaultHandlers(io: CliIo): CliHandlers {
       }
     },
     async search(query, options) {
-      const config = loadConfig(options);
-      if (isMissingDefaultDatabase(config)) {
-        io.stdout.write(formatSearchResults([], { color: config.colorOutput, clickableUrls: config.clickableUrls }));
-        return;
-      }
-      const db = connect(config.databasePath);
-      try {
-        initializeSchema(db);
-        const results = searchRepositories(createRepositoryStore(db), query);
-        io.stdout.write(formatSearchResults(results, { color: config.colorOutput, clickableUrls: config.clickableUrls }));
-      } finally {
-        db.close();
-      }
+      withLocalStore(options, {
+        onMissingDefault: (config) => formatSearchResults([], { color: config.colorOutput, clickableUrls: config.clickableUrls }),
+        onStore: (store, config) => {
+          const results = searchRepositories(store, query);
+          return formatSearchResults(results, { color: config.colorOutput, clickableUrls: config.clickableUrls });
+        }
+      }, io);
     },
     async show(repo, options) {
-      const config = loadConfig(options);
-      if (isMissingDefaultDatabase(config)) {
-        io.stdout.write(formatInspection({ status: "not-found", input: repo }));
-        return;
-      }
-      const db = connect(config.databasePath);
-      try {
-        initializeSchema(db);
-        const result = inspectRepository(createRepositoryStore(db), repo);
-        io.stdout.write(formatInspection(result));
-      } finally {
-        db.close();
-      }
+      withLocalStore(options, {
+        onMissingDefault: () => formatInspection({ status: "not-found", input: repo }),
+        onStore: (store) => formatInspection(inspectRepository(store, repo))
+      }, io);
+    },
+    async lists(options) {
+      withLocalStore(options, {
+        onMissingDefault: () => formatStarLists([]),
+        onStore: (store) => formatStarLists(store.listSummaries())
+      }, io);
     }
   };
+}
+
+function withLocalStore(
+  options: BaseOptions,
+  handlers: {
+    onMissingDefault: (config: ReturnType<typeof loadConfig>) => string;
+    onStore: (store: ReturnType<typeof createRepositoryStore>, config: ReturnType<typeof loadConfig>) => string;
+  },
+  io: CliIo
+) {
+  const config = loadConfig(options);
+  if (isMissingDefaultDatabase(config)) {
+    io.stdout.write(handlers.onMissingDefault(config));
+    return;
+  }
+  const db = connect(config.databasePath);
+  try {
+    initializeSchema(db);
+    const store = createRepositoryStore(db);
+    io.stdout.write(handlers.onStore(store, config));
+  } finally {
+    db.close();
+  }
 }
 
 function isMissingDefaultDatabase(config: ReturnType<typeof loadConfig>) {
@@ -126,6 +142,16 @@ export function createProgram(handlers: CliHandlers = createDefaultHandlers({ st
     .argument("<repo>", "full name or unique repository name")
     .action(async (repo: string) => {
       await handlers.show(repo, program.opts<BaseOptions>());
+    });
+
+  program
+    .command("lists")
+    .description("List locally synced GitHub Star Lists with repository counts.")
+    .action(async () => {
+      if (!handlers.lists) {
+        throw new Error("The lists command is not configured for this CLI instance.");
+      }
+      await handlers.lists(program.opts<BaseOptions>());
     });
 
   return program;

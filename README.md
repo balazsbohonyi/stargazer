@@ -2,7 +2,7 @@
 
 Search your GitHub starred repositories and GitHub Star Lists from a local SQLite cache.
 
-This is a local-only CLI. `sync` reads from GitHub, stores repository metadata and Star List membership on your machine, and `search` / `show` read from that local database.
+This is a local-only CLI. `sync` reads from GitHub, stores repository metadata and Star List membership on your machine, and `lists`, `search`, and `show` read from that local database.
 
 ## Setup
 
@@ -56,6 +56,12 @@ Sync starred repositories and Star Lists:
 
 ```sh
 stargazer sync
+```
+
+List synced Star Lists with local repository counts:
+
+```sh
+stargazer lists
 ```
 
 Search repository names, descriptions, and Star List names:
@@ -116,6 +122,14 @@ A tiny TypeScript search utility
 Lists: Private Tools, Public Research
 ```
 
+Star List inventory output is compact and line-oriented:
+
+```text
+AI - 12 repositories
+Private Tools - 3 repositories
+Reading Later - 0 repositories
+```
+
 Make URLs clickable in terminals that support OSC 8 hyperlinks:
 
 ```sh
@@ -136,12 +150,13 @@ GITHUB_STARS_COLOR=false
 
 ## Database Location
 
-By default, the CLI stores data in `~/.stargazer/github-stars.sqlite`. The default path is user-global, so `sync`, `search`, and `show` use the same local database no matter which directory you run `stargazer` from.
+By default, the CLI stores data in `~/.stargazer/github-stars.sqlite`. The default path is user-global, so `sync`, `lists`, `search`, and `show` use the same local database no matter which directory you run `stargazer` from.
 
 Override the database path with `--db` or `GITHUB_STARS_DB` when you need an isolated or advanced workflow:
 
 ```sh
 stargazer --db ./stars.sqlite sync
+stargazer --db ./stars.sqlite lists
 stargazer --db ./stars.sqlite search sqlite
 stargazer --db ./stars.sqlite show octo/repo
 ```
@@ -162,6 +177,12 @@ Sync starred repositories and Star Lists:
 stargazer sync
 ```
 
+List every locally synced Star List with its repository count from the last sync:
+
+```sh
+stargazer lists
+```
+
 Search repository names, descriptions, and Star List names:
 
 ```sh
@@ -180,7 +201,7 @@ Short names must uniquely identify a repository. If more than one local reposito
 
 ## Privacy
 
-The CLI treats public and private GitHub Star Lists the same for local search. Private list names, descriptions, and membership are stored only in the local SQLite database under `~/.stargazer` unless you override the path. The MVP does not publish, mutate, or sync list metadata back to GitHub.
+The CLI treats public and private GitHub Star Lists the same for local listing and search. Private list names, descriptions, and membership are stored only in the local SQLite database under `~/.stargazer` unless you override the path. The MVP does not publish, mutate, or sync list metadata back to GitHub.
 
 Persistent config files are local sensitive files when they contain GitHub tokens. Keep `~/.stargazer/config.env` private and avoid copying it into shared project directories.
 
@@ -191,6 +212,7 @@ Included:
 - Read-only sync for starred repositories
 - Read-only sync for GitHub Star Lists visible to the authenticated user
 - Local SQLite persistence
+- Star List inventory with repository counts
 - Repository name and description search
 - Star List name matching
 - Compact search output and local repository inspection

@@ -22,6 +22,11 @@ export interface StarListRecord {
   updatedAt?: string;
 }
 
+export interface StarListSummary {
+  name: string;
+  repositoryCount: number;
+}
+
 export interface RepoWithLists extends RepositoryRecord {
   lists: StarListRecord[];
 }
@@ -48,6 +53,11 @@ interface ListRow {
   updated_at: string;
 }
 
+interface ListSummaryRow {
+  name: string;
+  repository_count: number;
+}
+
 export interface RepositoryStore {
   upsertRepository(repo: RepositoryRecord): void;
   upsertList(list: StarListRecord): void;
@@ -60,7 +70,13 @@ export interface RepositoryStore {
   transaction<T>(fn: () => T): T;
 }
 
-export function createRepositoryStore(db: DbConnection): RepositoryStore {
+export interface StarListSummaryStore {
+  listSummaries(): StarListSummary[];
+}
+
+export type FullRepositoryStore = RepositoryStore & StarListSummaryStore;
+
+export function createRepositoryStore(db: DbConnection): FullRepositoryStore {
   const now = () => new Date().toISOString();
 
   const upsertRepositoryStatement = db.prepare(`
@@ -180,6 +196,21 @@ export function createRepositoryStore(db: DbConnection): RepositoryStore {
     return rows.map(mapListRow);
   }
 
+  function listSummaries() {
+    const rows = db
+      .prepare(
+        `
+        SELECT l.name, COUNT(m.repo_id) AS repository_count
+        FROM star_lists l
+        LEFT JOIN repo_list_memberships m ON m.list_id = l.id
+        GROUP BY l.id, l.name
+        ORDER BY lower(l.name), l.name, l.id
+      `
+      )
+      .all() as ListSummaryRow[];
+    return rows.map(mapListSummaryRow);
+  }
+
   function getRepoWithLists(repoId: string) {
     const row = db.prepare("SELECT * FROM repositories WHERE id = ?").get(repoId) as RepoRow | undefined;
     return row ? { ...mapRepoRow(row), lists: listMemberships(row.id) } : undefined;
@@ -210,6 +241,7 @@ export function createRepositoryStore(db: DbConnection): RepositoryStore {
     getRepoWithLists,
     findRepositoryCandidates,
     listMemberships,
+    listSummaries,
     transaction: <T>(fn: () => T) => db.transaction(fn)()
   };
 }
@@ -237,6 +269,13 @@ function mapListRow(row: ListRow): StarListRecord {
     description: row.description,
     isPrivate: Boolean(row.is_private),
     updatedAt: row.updated_at
+  };
+}
+
+function mapListSummaryRow(row: ListSummaryRow): StarListSummary {
+  return {
+    name: row.name,
+    repositoryCount: row.repository_count
   };
 }
 

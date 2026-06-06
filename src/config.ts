@@ -2,8 +2,6 @@ import os from "node:os";
 import path from "node:path";
 import { config as loadDotenv } from "dotenv";
 
-export type CommandName = "sync" | "search" | "show";
-
 export interface BaseOptions {
   db?: string;
   token?: string;

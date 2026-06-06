@@ -30,6 +30,9 @@ export function initializeSchema(db: DbConnection) {
       PRIMARY KEY (repo_id, list_id)
     );
 
+    CREATE INDEX IF NOT EXISTS idx_repo_list_memberships_list_repo
+      ON repo_list_memberships(list_id, repo_id);
+
     CREATE VIRTUAL TABLE IF NOT EXISTS repo_fts USING fts5(
       repo_id UNINDEXED,
       full_name,

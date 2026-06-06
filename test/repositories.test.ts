@@ -56,4 +56,27 @@ describe("repository store", () => {
 
     expect(store.listMemberships(repoAlpha.id).map((list) => list.name)).toEqual(["Private Tools", "Public Research"]);
   });
+
+  it("lists public and private Star Lists with local repository counts", () => {
+    const { store } = createTestStore();
+    store.upsertRepository(repoAlpha);
+    store.upsertRepository(repoBeta);
+    store.upsertList(privateList);
+    store.upsertList(publicList);
+    store.replaceListMembership(privateList.id, [repoAlpha.id, repoBeta.id]);
+
+    expect(store.listSummaries()).toEqual([
+      { name: "Private Tools", repositoryCount: 2 },
+      { name: "Public Research", repositoryCount: 0 }
+    ]);
+  });
+
+  it("sorts Star Lists case-insensitively with deterministic tie breaks", () => {
+    const { store } = createTestStore();
+    store.upsertList({ ...publicList, id: "UL_zed", name: "zed", slug: "zed" });
+    store.upsertList({ ...publicList, id: "UL_alpha_upper", name: "Alpha", slug: "alpha-upper" });
+    store.upsertList({ ...publicList, id: "UL_alpha_lower", name: "alpha", slug: "alpha-lower" });
+
+    expect(store.listSummaries().map((list) => list.name)).toEqual(["Alpha", "alpha", "zed"]);
+  });
 });
