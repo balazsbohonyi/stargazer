@@ -31,6 +31,11 @@ export interface RepoWithLists extends RepositoryRecord {
   lists: StarListRecord[];
 }
 
+export type StarListRepositoriesResult =
+  | { status: "found"; list: StarListRecord; repositories: RepositoryRecord[] }
+  | { status: "not-found"; input: string }
+  | { status: "ambiguous"; input: string; lists: StarListRecord[] };
+
 interface RepoRow {
   id: string;
   database_id: number | null;
@@ -64,6 +69,7 @@ export interface RepositoryStore {
   replaceListMembership(listId: string, repoIds: string[]): void;
   searchMetadata(query: string, limit?: number): RepositoryRecord[];
   findReposByListName(query: string, limit?: number): RepositoryRecord[];
+  findRepositoriesInListByName(name: string): StarListRepositoriesResult;
   getRepoWithLists(repoId: string): RepoWithLists | undefined;
   findRepositoryCandidates(input: string): RepoWithLists[];
   listMemberships(repoId: string): StarListRecord[];
@@ -181,6 +187,35 @@ export function createRepositoryStore(db: DbConnection): FullRepositoryStore {
     return rows.map(mapRepoRow);
   }
 
+  function findRepositoriesInListByName(name: string): StarListRepositoriesResult {
+    const listRows = db
+      .prepare(
+        `
+        SELECT *
+        FROM star_lists
+        WHERE lower(name) = lower(?)
+        ORDER BY name, id
+      `
+      )
+      .all(name) as ListRow[];
+    const lists = listRows.map(mapListRow);
+    if (lists.length === 0) return { status: "not-found", input: name };
+    if (lists.length > 1) return { status: "ambiguous", input: name, lists };
+
+    const rows = db
+      .prepare(
+        `
+        SELECT r.*
+        FROM repositories r
+        JOIN repo_list_memberships m ON m.repo_id = r.id
+        WHERE m.list_id = ?
+        ORDER BY lower(r.full_name), r.full_name, r.id
+      `
+      )
+      .all(lists[0].id) as RepoRow[];
+    return { status: "found", list: lists[0], repositories: rows.map(mapRepoRow) };
+  }
+
   function listMemberships(repoId: string) {
     const rows = db
       .prepare(
@@ -238,6 +273,7 @@ export function createRepositoryStore(db: DbConnection): FullRepositoryStore {
     replaceListMembership,
     searchMetadata,
     findReposByListName,
+    findRepositoriesInListByName,
     getRepoWithLists,
     findRepositoryCandidates,
     listMemberships,

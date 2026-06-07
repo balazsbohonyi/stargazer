@@ -2,7 +2,7 @@
 
 Search your GitHub starred repositories and GitHub Star Lists from a local SQLite cache.
 
-This is a local-only CLI. `sync` reads from GitHub, stores repository metadata and Star List membership on your machine, and `lists`, `search`, and `show` read from that local database.
+This is a local-only CLI. `sync` reads from GitHub, stores repository metadata and Star List membership on your machine, and `lists`, `list`, `search`, and `show` read from that local database.
 
 ## Setup
 
@@ -64,6 +64,12 @@ List synced Star Lists with local repository counts:
 stargazer lists
 ```
 
+List repositories in one synced Star List:
+
+```sh
+stargazer list "Private Tools"
+```
+
 Search repository names, descriptions, and Star List names:
 
 ```sh
@@ -104,17 +110,15 @@ The sync command fails before contacting GitHub when no token is configured. Tre
 
 Search results use colored terminal output by default:
 
-- Repository names are displayed in a Unicode box.
-- Repository name boxes and repository names are yellow.
+- Repository names are displayed as highlighted headings.
+- Repository headings and repository names are yellow.
 - Star List lines are green.
 - URLs are blue and underlined.
 
-Search output is formatted with the repository language beside the boxed name, followed by the URL, description, and Star List membership:
+Search output is formatted with the repository language beside the name, followed by the URL, description, and Star List membership:
 
 ```text
-┌────────────┐
-│ octo/alpha │ [TypeScript]
-└────────────┘
+octo/alpha [TypeScript]
 https://github.com/octo/alpha
 
 A tiny TypeScript search utility
@@ -128,6 +132,19 @@ Star List inventory output is compact and line-oriented:
 AI - 12 repositories
 Private Tools - 3 repositories
 Reading Later - 0 repositories
+```
+
+Star List repository output uses the same detailed repository layout as search results:
+
+```text
+Repositories in Private Tools:
+
+octo/alpha [TypeScript]
+https://github.com/octo/alpha
+
+A tiny TypeScript search utility
+
+Lists: Private Tools, Public Research
 ```
 
 Make URLs clickable in terminals that support OSC 8 hyperlinks:
@@ -157,6 +174,7 @@ Override the database path with `--db` or `GITHUB_STARS_DB` when you need an iso
 ```sh
 stargazer --db ./stars.sqlite sync
 stargazer --db ./stars.sqlite lists
+stargazer --db ./stars.sqlite list "Private Tools"
 stargazer --db ./stars.sqlite search sqlite
 stargazer --db ./stars.sqlite show octo/repo
 ```
@@ -181,6 +199,12 @@ List every locally synced Star List with its repository count from the last sync
 
 ```sh
 stargazer lists
+```
+
+List repositories in one locally synced Star List by exact name, matched case-insensitively:
+
+```sh
+stargazer list "Private Tools"
 ```
 
 Search repository names, descriptions, and Star List names:
@@ -213,6 +237,7 @@ Included:
 - Read-only sync for GitHub Star Lists visible to the authenticated user
 - Local SQLite persistence
 - Star List inventory with repository counts
+- Repository listing for one Star List by name
 - Repository name and description search
 - Star List name matching
 - Compact search output and local repository inspection

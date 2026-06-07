@@ -79,4 +79,50 @@ describe("repository store", () => {
 
     expect(store.listSummaries().map((list) => list.name)).toEqual(["Alpha", "alpha", "zed"]);
   });
+
+  it("finds repositories in a Star List by exact case-insensitive name", () => {
+    const { store } = createTestStore();
+    store.upsertRepository(repoBeta);
+    store.upsertRepository(repoAlpha);
+    store.upsertList(privateList);
+    store.replaceListMembership(privateList.id, [repoBeta.id, repoAlpha.id]);
+
+    const result = store.findRepositoriesInListByName("private tools");
+
+    expect(result.status).toBe("found");
+    if (result.status !== "found") throw new Error("Expected Star List lookup to succeed");
+    expect(result.list).toMatchObject({ name: "Private Tools", isPrivate: true });
+    expect(result.repositories.map((repo) => repo.fullName)).toEqual(["octo/alpha", "octo/beta"]);
+  });
+
+  it("returns an empty repository list for a matched Star List without memberships", () => {
+    const { store } = createTestStore();
+    store.upsertList(publicList);
+
+    const result = store.findRepositoriesInListByName("PUBLIC RESEARCH");
+
+    expect(result.status).toBe("found");
+    if (result.status !== "found") throw new Error("Expected Star List lookup to succeed");
+    expect(result.list).toMatchObject({ name: "Public Research", isPrivate: false });
+    expect(result.repositories).toEqual([]);
+  });
+
+  it("reports not found for unknown Star List names", () => {
+    const { store } = createTestStore();
+    store.upsertList(publicList);
+
+    expect(store.findRepositoriesInListByName("Tools")).toEqual({ status: "not-found", input: "Tools" });
+  });
+
+  it("reports ambiguous Star List names that differ only by case", () => {
+    const { store } = createTestStore();
+    store.upsertList({ ...publicList, id: "UL_tools_upper", name: "Tools", slug: "tools-upper" });
+    store.upsertList({ ...privateList, id: "UL_tools_lower", name: "tools", slug: "tools-lower" });
+
+    const result = store.findRepositoriesInListByName("tools");
+
+    expect(result.status).toBe("ambiguous");
+    if (result.status !== "ambiguous") throw new Error("Expected Star List lookup to be ambiguous");
+    expect(result.lists.map((list) => list.name)).toEqual(["Tools", "tools"]);
+  });
 });

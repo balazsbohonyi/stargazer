@@ -12,13 +12,14 @@ import { syncStars } from "./github/sync.js";
 import { formatSearchResults } from "./search/format.js";
 import { searchRepositories } from "./search/search.js";
 import { formatInspection, inspectRepository } from "./inspect/inspect.js";
-import { formatStarLists } from "./lists/lists.js";
+import { formatStarListRepositories, formatStarLists, listStarListRepositories } from "./lists/lists.js";
 
 export interface CliHandlers {
   sync: (options: BaseOptions) => Promise<void> | void;
   search: (query: string, options: BaseOptions) => Promise<void> | void;
   show: (repo: string, options: BaseOptions) => Promise<void> | void;
   lists?: (options: BaseOptions) => Promise<void> | void;
+  list?: (name: string, options: BaseOptions) => Promise<void> | void;
 }
 
 export interface CliIo {
@@ -64,6 +65,15 @@ export function createDefaultHandlers(io: CliIo): Required<CliHandlers> {
       withLocalStore(options, {
         onMissingDefault: () => formatStarLists([]),
         onStore: (store) => formatStarLists(store.listSummaries())
+      }, io);
+    },
+    async list(name, options) {
+      withLocalStore(options, {
+        onMissingDefault: () => formatStarLists([]),
+        onStore: (store, config) => formatStarListRepositories(listStarListRepositories(store, name), {
+          color: config.colorOutput,
+          clickableUrls: config.clickableUrls
+        })
       }, io);
     }
   };
@@ -142,6 +152,17 @@ export function createProgram(handlers: CliHandlers = createDefaultHandlers({ st
     .argument("<repo>", "full name or unique repository name")
     .action(async (repo: string) => {
       await handlers.show(repo, program.opts<BaseOptions>());
+    });
+
+  program
+    .command("list")
+    .description("List repositories in one locally synced GitHub Star List.")
+    .argument("<list_name>", "Star List name")
+    .action(async (name: string) => {
+      if (!handlers.list) {
+        throw new Error("The list command is not configured for this CLI instance.");
+      }
+      await handlers.list(name, program.opts<BaseOptions>());
     });
 
   program

@@ -15,6 +15,9 @@ function handlers(calls: string[]): CliHandlers {
     show: (repo, options) => {
       calls.push(`show:${repo}:${options.db ?? ""}`);
     },
+    list: (name, options) => {
+      calls.push(`list:${name}:${options.db ?? ""}`);
+    },
     lists: (options) => {
       calls.push(`lists:${options.db ?? ""}`);
     }
@@ -29,6 +32,7 @@ describe("cli", () => {
     expect(program.helpInformation()).toContain("sync");
     expect(program.helpInformation()).toContain("search");
     expect(program.helpInformation()).toContain("show");
+    expect(program.helpInformation()).toContain("list");
     expect(program.helpInformation()).toContain("lists");
   });
 
@@ -78,6 +82,15 @@ describe("cli", () => {
     await program.parseAsync(["node", "cli", "--db", "stars.sqlite", "lists"]);
 
     expect(calls).toEqual(["lists:stars.sqlite"]);
+  });
+
+  it("parses list name and database path", async () => {
+    const calls: string[] = [];
+    const program = createProgram(handlers(calls));
+
+    await program.parseAsync(["node", "cli", "--db", "stars.sqlite", "list", "Private Tools"]);
+
+    expect(calls).toEqual(["list:Private Tools:stars.sqlite"]);
   });
 
   it("search from empty default app state does not create the app directory or database", async () => {
@@ -143,6 +156,22 @@ describe("cli", () => {
       expect(output.join("")).toContain("Run `stargazer sync` first");
       expect(fs.existsSync(appDirectory)).toBe(true);
       expect(fs.existsSync(databasePath)).toBe(false);
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it("list from empty default app state does not create the app directory or database", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "stargazer-home-"));
+    const output: string[] = [];
+
+    try {
+      await withProcessEnv({ HOME: home }, async () => {
+        await createDefaultHandlers(io(output)).list("Private Tools", {});
+      });
+
+      expect(output.join("")).toContain("Run `stargazer sync` first");
+      expect(fs.existsSync(path.join(home, ".stargazer"))).toBe(false);
     } finally {
       fs.rmSync(home, { recursive: true, force: true });
     }
@@ -230,6 +259,39 @@ describe("cli", () => {
     }
   });
 
+  it("list after sync reads the same default database from another working directory", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "stargazer-home-"));
+    const firstCwd = fs.mkdtempSync(path.join(os.tmpdir(), "stargazer-cwd-a-"));
+    const secondCwd = fs.mkdtempSync(path.join(os.tmpdir(), "stargazer-cwd-b-"));
+    const output: string[] = [];
+    const cwdSpy = vi.spyOn(process, "cwd");
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(mockGithubFetch());
+
+    try {
+      await withProcessEnv({ HOME: home, GITHUB_TOKEN: "token" }, async () => {
+        cwdSpy.mockReturnValue(firstCwd);
+        await createDefaultHandlers(io(output)).sync({});
+        cwdSpy.mockReturnValue(secondCwd);
+        await createDefaultHandlers(io(output)).list("private tools", {});
+      });
+
+      expect(output.join("")).toContain("Repositories in Private Tools");
+      expect(output.join("")).toContain("octo/alpha");
+      expect(output.join("")).toContain("https://github.com/octo/alpha");
+      expect(output.join("")).toContain("A tiny TypeScript search utility");
+      expect(output.join("")).toContain("Lists: Private Tools");
+      expect(fs.existsSync(path.join(home, ".stargazer", "github-stars.sqlite"))).toBe(true);
+      expect(fs.existsSync(path.join(firstCwd, ".github-stars.sqlite"))).toBe(false);
+      expect(fs.existsSync(path.join(secondCwd, ".github-stars.sqlite"))).toBe(false);
+    } finally {
+      cwdSpy.mockRestore();
+      fetchSpy.mockRestore();
+      fs.rmSync(home, { recursive: true, force: true });
+      fs.rmSync(firstCwd, { recursive: true, force: true });
+      fs.rmSync(secondCwd, { recursive: true, force: true });
+    }
+  });
+
   it("search with an explicit missing database path initializes that database", async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "stargazer-db-"));
     const dbPath = path.join(tempDir, "explicit.sqlite");
@@ -254,6 +316,21 @@ describe("cli", () => {
       await createDefaultHandlers(io(output)).lists({ db: dbPath });
 
       expect(output.join("")).toContain("Run `stargazer sync` first");
+      expect(fs.existsSync(dbPath)).toBe(true);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("list with an explicit missing database path initializes that database", async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "stargazer-db-"));
+    const dbPath = path.join(tempDir, "explicit.sqlite");
+    const output: string[] = [];
+
+    try {
+      await createDefaultHandlers(io(output)).list("Private Tools", { db: dbPath });
+
+      expect(output.join("")).toContain('No local Star List found for "Private Tools"');
       expect(fs.existsSync(dbPath)).toBe(true);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
@@ -297,6 +374,32 @@ describe("cli", () => {
 
       expect(output.join("")).toContain("Private Tools - 1 repository");
       expect(output.join("")).toContain("Public Research - 1 repository");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("list reads populated local data without contacting GitHub", async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "stargazer-db-"));
+    const dbPath = path.join(tempDir, "explicit.sqlite");
+    const output: string[] = [];
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(mockGithubFetch());
+
+    try {
+      await withProcessEnv({ GITHUB_TOKEN: "token" }, async () => {
+        await createDefaultHandlers(io(output)).sync({ db: dbPath });
+        fetchSpy.mockClear();
+        fetchSpy.mockRejectedValue(new Error("network should not be used"));
+        await createDefaultHandlers(io(output)).list("Private Tools", { db: dbPath });
+      });
+
+      expect(output.join("")).toContain("Repositories in Private Tools");
+      expect(output.join("")).toContain("octo/alpha");
+      expect(output.join("")).toContain("https://github.com/octo/alpha");
+      expect(output.join("")).toContain("A tiny TypeScript search utility");
+      expect(output.join("")).toContain("Lists: Private Tools");
       expect(fetchSpy).not.toHaveBeenCalled();
     } finally {
       fetchSpy.mockRestore();
